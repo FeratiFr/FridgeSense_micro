@@ -8,7 +8,21 @@ import neopixel
 import esp32
 import time
 import json
-from machine import Pin, deepsleep, ADC, PWM
+import sys
+import de2120_barcode_scanner
+from machine import Pin, deepsleep, ADC, PWM, UART
+
+# Supabase API details
+SUPABASE_URL = "https://wyzjemwyznhgrbosfoqc.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5emplbXd5em5oZ3Jib3Nmb3FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU4NjcxMjEsImV4cCI6MjA2MTQ0MzEyMX0.PoEf5f6t8A-hFVUNf5PFlekCW4wT_s6MvrgJu69NwR4"
+SUPABASE_TABLE = "modeState"  # Replace with your table name
+
+# Headers for Supabase authentication
+HEADERS = {
+    "Accept": "application/json",  # Add this to explicitly accept JSON responses
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+}
 
 
 def connect_to_wifi(ssid, password):
@@ -118,35 +132,69 @@ def read_wifi_credentials():
 #firebase stuff START
 FIREBASE_URL = "https://fridgesense-e1c59-default-rtdb.firebaseio.com/.json"
 
-def send_data(mode, state):
-    data = {"mode": mode,
-            "state": state}
+# def send_data(mode, state):
+#     data = {"mode": mode,
+#             "state": state}
+#     try:
+#         response = urequests.post(FIREBASE_URL, json=data)
+#         #print("Response:", response.text)
+#         response.close()
+#     except Exception as e:
+#         print("Error:", e)
+#         
+#         
+# def send_barcode (barcode):
+#     data = {"barcode":barcode}
+#     try:
+#         response = urequests.post(FIREBASE_URL, json=data)
+#         #print("Response:", response.text)
+#         response.close()
+#     except Exception as e:
+#         print("Error:", e)
+        
+def send_data(mode,barcode):
+    """Sends mode and state data to Supabase"""
+    url = f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE}"
+    data = {"mode": mode, "barcode": str(barcode)}
+
     try:
-        response = urequests.post(FIREBASE_URL, json=data)
-        #print("Response:", response.text)
+        response = urequests.post(url, json=data, headers=HEADERS)
+        print("Supabase Response:", response.text)
         response.close()
     except Exception as e:
         print("Error:", e)
-        
-#test
-#send_data(1,0)
-#test successful
-#firebase stuff END
 
-# ssid, password = read_wifi_credentials()
-# if ssid and password:
-#     if connect_to_wifi(ssid,password):
-#         print("Connected to Wi-Fi: ",ssid)
-#     else:
-#         print("Starting AP mode")
-#         ap_mode()
-# else:
-#     print ("Starting AP mode")
-#     ap_mode()
+# def send_barcode(barcode):
+#     """Sends barcode data to Supabase"""
+#     url = f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE}"
+#     data = {"barcode": barcode}
+# 
+#     try:
+#         response = urequests.post(url, json=data, headers=HEADERS)
+#         print("sent barcode ", barcode, "to supabase")
+#         response.close()
+#     except Exception as e:
+#         print("Error:", e)
+        
+
+
+ssid, password = read_wifi_credentials()
+if ssid and password:
+    if connect_to_wifi(ssid,password):
+        print("Connected to Wi-Fi: ",ssid)
+    else:
+        print("Starting AP mode")
+        ap_mode()
+else:
+    print ("Starting AP mode")
+    ap_mode()
 
 button = Pin(12, Pin.IN, Pin.PULL_DOWN)
 
 buzzer = PWM(Pin(33), freq= 2400, duty = 0)
+
+###################test#######################
+#send_barcode("012345678")
 
 
 photo_resistor = ADC(Pin(32))
@@ -156,15 +204,15 @@ photo_resistor.atten(ADC.ATTN_11DB)
 
 debouncing_array = [0] * 5
 
-mode = 0 #input mode default
+mode = 1 #input mode default
 state = 1 #on state default
 
 
 if machine.reset_cause() == machine.DEEPSLEEP_RESET:
     if(machine.wake_reason() == machine.EXT0_WAKE):
-        #send_data(1,mode)
         print("EXT0 Wake up")
-        send_data(mode,1)
+        state = 1
+#         send_data(mode,1)
                 
 
 def buzz(m):
@@ -187,6 +235,23 @@ def debounce():
     time.sleep(0.001)
     return
 
+uart = UART(1, baudrate =115200, tx= 8, rx = 7)
+def clear_serial_buffer(uart):
+     while uart.any():
+         uart.read()
+
+my_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+clear_serial_buffer(uart)
+
+def read_barcode(t):
+    my_scanner.start_scan()
+    barcode = my_scanner.read_barcode()
+    if(barcode):
+        print(barcode)
+        #my_scanner.stop_scan()
+        send_data(mode,barcode)
+        
+
 def light_read(t):
     global state
     global mode
@@ -194,24 +259,15 @@ def light_read(t):
     #send_data(state,mode)
     radiance = photo_resistor.read()
     #print(radiance)
-    if(radiance < 200): #no light detected condition
+    if(radiance < 100): #no light detected condition
         state = 0
-        #send_data(state,mode)
-        time.sleep(2)
-        print("no light detected. sleeping") #comment this out after testing
+#         send_data(mode,state)
+#         time.sleep(2)
+        print("no light detected. sleeping. radiance = ",radiance) #comment this out after testing
         #time.sleep(15)
         deepsleep()
         
-def switchPress(pin):
-    global mode
-    global state
-    #update mode if button is pressed
-    if(mode == 0):
-        mode = 1
-        print("mode switch from input to output")
-    elif(mode == 1):
-        mode = 0
-        print("mode switch from output to input")
+
     
     
 button_press = [0,0,0,0,1]
@@ -226,13 +282,13 @@ def button_read(t):
     if(debouncing_array == button_press):
         if(mode == 0):
             mode = 1
-            print("mode switch from input to output")
+            print("mode switch from output to input")
             buzz(0)
         elif(mode == 1):
             mode = 0
-            print("mode switch from output to input")
+            print("mode switch from input to output")
             buzz(1)
-        #send_data(mode,1)
+#         send_data(mode,1)
 
     
 
@@ -249,7 +305,8 @@ tim2.init(period = 10, mode = machine.Timer.PERIODIC, callback = button_read)
 tim1 = machine.Timer(1)
 tim1.init(period = 1000, mode = machine.Timer.PERIODIC, callback = light_read)
 
-
+tim0 = machine.Timer(0)
+tim1.init(period = 2000, mode = machine.Timer.PERIODIC, callback = read_barcode)
 
 #button.irq(handler= switchPress, trigger=Pin.IRQ_RISING)
 
