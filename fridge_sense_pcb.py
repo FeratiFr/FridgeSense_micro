@@ -9,7 +9,7 @@ import esp32
 import time
 import json
 import sys
-# import de2120_barcode_scanner
+import de2120_barcode_scanner
 from machine import Pin, deepsleep, ADC, PWM, UART
 
 if machine.reset_cause() == machine.DEEPSLEEP_RESET:
@@ -174,37 +174,38 @@ def buzz(m):
 # connect_to_wifi(ssid,password)
 # send_data(0,"012345678")
 
-ssid, password = read_wifi_credentials()
-if ssid and password:
-    if connect_to_wifi(ssid,password):
-        print("Connected to Wi-Fi: ",ssid)
-    else:
-        print("Starting AP mode")
-        ap_mode()
-else:
-    print ("Starting AP mode")
-    ap_mode()
+# ssid, password = read_wifi_credentials()
+# if ssid and password:
+#     if connect_to_wifi(ssid,password):
+#         print("Connected to Wi-Fi: ",ssid)
+#     else:
+#         print("Starting AP mode")
+#         ap_mode()
+# else:
+#     print ("Starting AP mode")
+#     ap_mode()
 
-debouncing_array = [1] * 2
-button_press_n = [1,1]
+debouncing_array = [1] * 5
+button_press_n = [0] * 5
 
+mode = 1
 #scanner init
-uart = UART(1, baudrate =115200, tx= 8, rx = 7)
-def clear_serial_buffer(uart):
-     while uart.any():
-         uart.read()
+# uart = UART(1, baudrate =115200, tx= 8, rx = 7)
+# def clear_serial_buffer(uart):
+#      while uart.any():
+#          uart.read()
 
-my_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
-clear_serial_buffer(uart)
+# my_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
+# clear_serial_buffer(uart)
 
 def button_read(t):
 #     print (button.value())
     global button_press_n
-#     global mode
+    global mode
     debouncing_array.append(button.value())
     debouncing_array.pop(0)
     #print(debouncing_array)
-    if(debouncing_array != button_press_n):
+    if(debouncing_array == button_press_n):
         if(mode == 0):
             mode = 1
             print("mode switch from output to input")
@@ -246,12 +247,12 @@ def light_barcode_read(t):
         #my_scanner.stop_scan()
         send_data(mode,barcode)
 
-pin5 = Pin(0, Pin.IN)
-esp32.wake_on_ext1(pins=(pin5,), level=esp32.WAKEUP_ANY_HIGH)
+# pin5 = Pin(0, Pin.IN)
+# esp32.wake_on_ext1(pins=(pin5,), level=esp32.WAKEUP_ANY_HIGH)
 
 tim2 = machine.Timer(0)
 tim2.init(period = 10, mode = machine.Timer.PERIODIC, callback = button_read)
 
-tim1= machine.Timer(1)
-tim1.init(period = 1000, mode = machine.Timer.PERIODIC, callback = light_barcode_read)
+# tim1= machine.Timer(1)
+# tim1.init(period = 1000, mode = machine.Timer.PERIODIC, callback = light_barcode_read)
 
