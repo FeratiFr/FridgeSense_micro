@@ -33,8 +33,8 @@ HEADERS = {
 #hardware init
 buzzer = PWM(Pin(6), freq= 2400, duty = 0)
 button = Pin(7, Pin.IN, Pin.PULL_UP)
-# ssid = "seguns_iPhone"
-# password = "Br0c0ll1"
+ssid = "seguns_iPhone"
+password = "Br0c0ll1"
 
 
 def connect_to_wifi(ssid, password):
@@ -190,13 +190,23 @@ button_press_n = [0] * 5
 
 mode = 1
 #scanner init
-# uart = UART(1, baudrate =115200, tx= 8, rx = 7)
-# def clear_serial_buffer(uart):
-#      while uart.any():
-#          uart.read()
+uart = UART(1, baudrate =115200, tx= 8, rx = 7) #change pin no.
+def clear_serial_buffer(uart):
+     while uart.any():
+         uart.read()
 
-# my_scanner = de2120_barcode_scanner.DE2120BarcodeScanner()
-# clear_serial_buffer(uart)
+my_scanner = de2120_barcode_scanner.DE2120BarcodeScanner() #change pin no. in library
+uart = UART(1, baudrate =115200, tx= 8, rx = 7) #change pin no.
+clear_serial_buffer(uart)
+my_scanner.send_command("SCMMAN")
+
+my_scanner.is_connected()
+time.sleep(0.5)
+if(my_scanner.is_connected()):
+    print("barcode scanner is online")
+else:
+
+    print("barcode scanner not found")
 
 def button_read(t):
 #     print (button.value())
@@ -216,30 +226,11 @@ def button_read(t):
             print("mode switch from input to output")
             buzz(1)
             buzz(0)
+    #send_data(mode,"012345678")
 
 sleep = 0
 #prev_sleep = 0
-def light_barcode_read(t):
-#     global state
-#     global mode
-    #print("mode: ",mode, "state: ",state)
-    #send_data(state,mode)
-    radiance = photo_resistor.read()
-    global sleep
-    
-    if(radiance < 100): #no light detected condition
-        #state = 0
-#         send_data(mode,state)
-#         time.sleep(2)
-        if(sleep == 0):
-            sleep = 1
-            print("no light detected. sleeping. radiance = ",radiance) #comment this out after testing
-        #time.sleep(15)
-#         machine.lightsleep()
-    else:
-        if(sleep == 1):
-            sleep = 0
-            print("waking up from deepsleep")
+def barcode_read(t):
     my_scanner.start_scan()
     barcode = my_scanner.read_barcode()
     if(barcode):
@@ -250,9 +241,9 @@ def light_barcode_read(t):
 # pin5 = Pin(0, Pin.IN)
 # esp32.wake_on_ext1(pins=(pin5,), level=esp32.WAKEUP_ANY_HIGH)
 
-tim2 = machine.Timer(0)
-tim2.init(period = 10, mode = machine.Timer.PERIODIC, callback = button_read)
+# tim2 = machine.Timer(0)
+# tim2.init(period = 10, mode = machine.Timer.PERIODIC, callback = button_read)
 
-# tim1= machine.Timer(1)
-# tim1.init(period = 1000, mode = machine.Timer.PERIODIC, callback = light_barcode_read)
+tim1= machine.Timer(1)
+tim1.init(period = 2000, mode = machine.Timer.PERIODIC, callback = barcode_read)
 
